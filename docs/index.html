@@ -19,6 +19,9 @@
       subMaxLevel: 2,
       coverpage: true,
       formatUpdated: '{YYYY} {MM}/{DD} {HH}:{mm}',
+      requestHeaders: {
+          'cache-control': 'max-age=600',
+      },
       alias: {
       '/.*/_sidebar.md': '/_sidebar.md'
       }
