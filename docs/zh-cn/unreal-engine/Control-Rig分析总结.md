@@ -1,5 +1,7 @@
-# Control Rig分析总结
+# Control Rig源码分析
 
+
+{docsify-updated}
 
 > 将21年写的文章搬运过来
 （未完待续）
@@ -9,8 +11,10 @@
 
  
 #  Control Rig的启用和创建
-Control Rig作为引擎插件集成在引擎中，在4.26版本中默认是关闭的，需要手动去开启
-![EnableControlRig](ControlRig/EnableControlRig.png)可以用两种方法为骨骼网格体创建Control Rig。第一种方法，右键点击一个骨骼网格体资产，选择 创建Control Rig（Create Control Rig）。这会新建一个 Control Rig 资产并自动将骨骼网格体指定为绑定对象。此资产会自动沿用骨骼网格体的名称，并且以 _CtrlRig 作为名称后缀。
+Control Rig作为引擎插件集成在引擎中，在UE4.26版本中默认是关闭的，需要手动去开启
+![EnableControlRig](ControlRig/EnableControlRig.png)
+
+可以用两种方法为骨骼网格体创建Control Rig。第一种方法，右键点击一个骨骼网格体资产，选择 创建Control Rig（Create Control Rig）。这会新建一个 Control Rig 资产并自动将骨骼网格体指定为绑定对象。此资产会自动沿用骨骼网格体的名称，并且以 _CtrlRig 作为名称后缀。
 ![createcr](ControlRig/createcr.png)第二种方法是手动创建一个 Control Rig。步骤是在内容浏览器中点击右键，选择 动画（Animation）> Control Rig。在上下文菜单中，选择 ControlRig 并点击 创建（Create）。
 ![create2](ControlRig/create2.gif)创建一个空白的Control Rig资源后，可以在Rig Hierarchy面板中手动import mesh。从这里就可以看到ControlRig不同于以往ue4动画资产的地方，它可以不依赖于USkeleton而独立创建资源。USkeletalMesh在这里是一个Preview Mesh的概念。
 ![ReferenceViewer](ControlRig/ReferenceViewer.png)从引用关系图可以看到，Control Rig并没有强引用USkeletalMesh和USkeleton。这就可以看到Control Rig可以在不同骨骼角色之间共用的可能性。 后面会说明Control Rig是如何能在不同的骨骼之间工作的。
