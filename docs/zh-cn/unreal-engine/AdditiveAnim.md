@@ -14,6 +14,7 @@
 UAnimSequence::GetAnimationPose(OutPose, OutCurve, ExtractionContext)
 ```
 ![AdditiveSettings](AdditiveAnim/AdditiveSettings.png)
+
 这是因为在动画编辑器里引擎做了后处理操作，在PostEdit流程中，如果AdditiveSettings发生了变更，会更新动画数据并重新压缩。也就是动画资源本身的叠加与否是离线
 操作完成的，并不是运行时计算得到的。当然UE也提供了一个动画节点MakeDynamicAdditive来满足Runtime计算叠加动画的需求。
 
