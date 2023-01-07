@@ -56,9 +56,12 @@ FTransform UAnimSequence::ExtractRootTrackTransform(float Pos, const FBoneContai
 ### ExtractRootBone坐标系问题
 在设置好正确的RootLock后，就进入RootMoiton数据提取流程了。在这个过程中会遇到一个问题，AdditiveAnim下提取出来的Transform和常规非AdditiveAnim设置下提取出来的Transform不一致的问题。下面第一张gif是NoAdditive下播放带位移蒙太奇的情况，角色攻击向前位移一段距离，通过log可以看到提取的RootMotion数据，其位移方向在ComponentSpace下是水平面沿着Y轴的。第二张gif则是播放叠加蒙太奇的情况，角色几乎原地不动，通过log可以看到Rootmotion位移方向已经是沿着Z轴，这一小段位移转化成速度后Apply到MovementMode_Walking，几乎等于没生效。
 
-> 引擎中一些默认的LogCategory是设置为Warning，如果想输出该类型的Log级别信息，需要重新设置Category默认级别。例如这里调试RootMotion的信息使用的是LogRootMotion类型，可以在项目Config目录下的DefaultEngine.ini添加如下信息后就能看到输出了
+> 引擎中一些默认的LogCategory是设置为Warning，如果想输出该类型的Log级别信息，需要重新设置Category默认级别。例如这里调试RootMotion的信息使用的是LogRootMotion类型，可以想单次调整Log级别，可以直接在控制台输出Log LogRootMotion Log 
+> 
+> 如果想持久化设置Log级别，可以直接在项目Config目录下的DefaultEngine.ini添加下配置
 >> [Core.Log]  
 >> LogRootMotion = Log
+> 
 
 
 ![NoAdditive](AdditiveAnim/NoAdditive.gif ':size=70%')
