@@ -9,7 +9,7 @@
 先说结论，MetaHuman面部表情的逻辑驱动入口在引擎层面上是靠一个ControlRig节点，打开MetaHuman的USkeletalMesh后，可以看到它自带了一个后处理动画蓝图(PostProcess ABP)，我们如果直接在窗口下方禁用它或者去除对它的引用，就能看到可以自由拖动面部骨骼了。其次在AssetUserData栏目下，可以看到一个UDNAAsset，如果在开启后处理动画蓝图的同时去除DNAAsset，会发现面部骨骼也能操作了。所以在引擎层面上，是后处理动画蓝图和DNAAsset两个一起配合驱动着RigLogi表情系统。所以如果要做骨骼捏脸方案，对面部骨骼进行修改，那么就应该遵循RigLogic原生的流程去处理。因此，我们就需要进一步探寻后处理动画蓝图的内容和DNAAsset之间的关联。
 
 
-![Skeleton](MetaHuman/MetaHumanFace.png ':size=90%')
+![MetaHuman_1](MetaHuman/MetaHumanFace.png ':size=90%')
 
 ### 后处理动画蓝图
 打开FaceProcessABP后，可以看到AnimGraph非常简单，只有一个ControlRig动画节点，如果不熟悉ControlRig工作原理的，可以看笔者的另一篇文章。打开动画节点引用的ControlRig资产，同样很简单只定义了一个ForwardsSolve事件，虽然连接出来的节点很多，但从整个执行流上看就两个部分：
