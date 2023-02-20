@@ -41,7 +41,7 @@ struct FSharedRigRuntimeContext
 ```
 
 ### FRigLogic
-RigLogic是真正的数据容器，它存放了所有骨骼，控制器，BlendShapes等一系列数据。它的工厂构造函数通过初始化后的IBehaviorReader，将DNA里的原型数据读取出来并COPY单独出来，所以不同USkeletalMesh所对应的MetaHuman的数据都是相互隔离的，而一个USkeletalMesh对应的多个动画实例则共享同一份内存地址。
+RigLogic是真正的数据容器，它存放了所有骨骼，控制器，BlendShapes等一系列数据。它的工厂构造函数通过初始化后的IBehaviorReader，将DNA里的原型数据读取出来并单独COPY出来，所以不同USkeletalMesh所对应的MetaHuman的数据都是相互隔离的，而一个USkeletalMesh对应的多个动画实例则共享同一份内存地址。
 
 ![RigInstance](MetaHuman/RigInstance.png)
 
@@ -110,7 +110,68 @@ FRigUnit_RigLogic_JointUpdateParams JointUpdateParamsTemp
 
 ![updatejoint](MetaHuman/updatejoint.png ':size=80%')
 
-注意到NeutralJoint是从SharedRigRuntimeContext::RigLogic里获取的，这在同一个USkeletalMesh之间是共享的，它描述了一个MetaHuman的基础脸型。而DeltaTransform则是保存在RigInstance里，这在不同RigUnit里都是不同的，比如同一个Face根据不同动画曲线数值而呈现出不同的表情。
+注意到NeutralJoint是从SharedRigRuntimeContext::RigLogic里获取的，这在同一个USkeletalMesh之间是共享的，它描述了一个MetaHuman的基础脸型数据。而DeltaTransform则是保存在RigInstance里，这在不同RigUnit里都是不同的，比如同一个Face根据不同动画曲线数值而呈现出不同的表情。
 
 ## 骨骼修改实现
-未完待续
+通过上面的流程分析，可以很清楚了解如果要实现修改面部骨骼的捏脸方案，就需要骨骼捏脸数据应用到基础脸型数据，也就是FRigLogic里的NeutralJointValues。为了不破坏RigUnit的原生流程，我们采取非侵入式的修改，在执行PostProcessABP前将数据写进FRigLogic里。首先我们要获取UDNAAsset里的FSharedRigRuntimeContext，因为源码里是用friend struct的形式，所以接口没有暴露出来。因此，需要修改源码自己添加一个。
+
+```C++
+UCLASS(NotBlueprintable, hidecategories = (Object))
+class RIGLOGICMODULE_API UDNAAsset : public UAssetUserData
+{
+	GENERATED_BODY()
+public:
+    // ........
+    FSharedRigRuntimeContext* GetSharedRigRuntimeContext()
+    {
+        return &Context;
+    }
+};
+```
+
+### NeutralJointValues
+有了RigRuntimeContext的指针，那么修改数据的入口就有了，接下来看一下NeutralJointValues是怎么定义的。因为RigLogic是一个第三方库，它的Transform数据排列方式和UE的FTransform是不一致的，所以插件里写了一个FTransformArrayView结构将底层数据封装了一层。
+
+![transformview](MetaHuman/transformview.png ':size=70%')
+
+同理，我们如果想将美术提供的FTransform数据写入Values内存地址里，就仿照ConvertCoordinateSystem将数据反转一下。
+```C++
+class RIGLOGICMODULE_API FTransformArrayView
+{
+//....
+public:
+    void SetFTransformFromIndex(const FTransform& InTransform, size_t Index)
+    {
+        float* Source = Values + (Index * TransformationSize);
+        Source[0] = InTransform.GetLocation().X;
+        Source[1] = -1.0f * InTransform.GetLocation().Y;
+        Source[2] = InTransform.GetLocation().Z;
+        Source[3] = InTransform.Rotator().Roll;
+        Source[4] = -1.0f * InTransform.Rotator().Pitch;
+        Source[5] = -1.0f * InTransform.Rotator().Yaw;
+        Source[6] = InTransform.GetScale3D().X;
+        Source[7] = InTransform.GetScale3D().Y;
+        Source[8] = InTransform.GetScale3D().Z;
+    }
+};
+```
+
+## 总结
+有了上面两个新增的接口，我们就可以将数据写入SharedRigRuntimeContext里，从而修改MetaHuman的基础脸型，同时修改后的脸型数据也会作为表情计算的输入计算得到新的DeltaTransform，从而保证表情系统依然能正常作用于修改后的脸型。大致的修改流程可以参考下面的伪代码
+
+```C++
+{
+    // impl these code in Character, Component, AnimInstance or AnimNode
+    UDNAAsset* DNAAsset = Cast<UDNAAsset>(SkelMesh->GetAssetUserDataOfClass(UDNAAsset::StaticClass()));
+    FSharedRigRuntimeContext* ContextPtr = DNAAsset->GetSharedRigRuntimeContext();
+    FName BoneName = ...
+    FTransform NewTransform = ...
+    for (const uint16 JointIndex : SharedRigRuntimeContext->VariableJointIndices[CurrentLOD].Values)
+	{
+		if(ContextPtr->BehaviorReader->GetJointName(JointIndex) == BoneName)
+        {
+            ContextPtr->RigLogic->GetNeutralJointValues().SetFTransformFromIndex(InTransform, JointIndex);
+        }
+	}
+}
+```
