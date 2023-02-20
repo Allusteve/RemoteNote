@@ -175,3 +175,7 @@ public:
 	}
 }
 ```
+
+下面的gif里，左边和右边的是原生的metahuman mesh，中间的mesh通过上面自定义的接口是将payton的脸型数据写进ettore。然后通过Sequencer设置RigLogic表情曲线，可以看到在修改后的脸型上，表情依然是能正常播放的。
+
+![gif](MetaHuman/metahuman.gif)
