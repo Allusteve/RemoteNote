@@ -2,11 +2,15 @@
 
 > 文章写下时的工作环境：UE5.0.3 
 
+> 之前预研了MetaHuman角色捏脸相关的技术，最近重温细节时发现很多都忘记了，想来还是要用文字记录下来
+> 
 ## 前言
-去年在预研MetaHuman角色捏脸相关的技术，最近重温时发现很多都忘记了，想来还是要用文字记录下来。首先美术给到了MetaHumanCreator生成的角色资产，希望我们在其基础上对脸部的骨骼调整，达到捏脸的效果，同时还要保证原生的RigLogic表情系统能正常运作。我这边刚拿到USkeletalMesh资源后，发现在UE编辑器下对面部骨骼的transform进行操作却始终无法生效，于是找到了Epic官方发布的RigLogic白皮书，对其整个表情系统进行了学习，下面简单记录一下整个过程中遇到的技术要点
+首先美术给到了MetaHumanCreator生成的角色资产，希望我们在其基础上对脸部的骨骼调整，达到捏脸的效果，同时还要保证原生的RigLogic表情系统能正常运作。我这边刚拿到USkeletalMesh资源后，发现在UE编辑器下对面部骨骼的transform进行操作却始终无法生效，于是找到了Epic官方发布的RigLogic白皮书，对其整个表情系统进行了学习，下面简单记录一下整个过程中遇到的技术要点
 
-## MetaHuman表情逻辑入口
-先说结论，MetaHuman面部表情的逻辑驱动入口在引擎层面上是靠一个ControlRig节点，打开MetaHuman的USkeletalMesh后，可以看到它自带了一个后处理动画蓝图(PostProcess ABP)，我们如果直接在窗口下方禁用它或者去除对它的引用，就能看到可以自由拖动面部骨骼了。其次在AssetUserData栏目下，可以看到一个UDNAAsset，如果在开启后处理动画蓝图的同时去除DNAAsset，会发现面部骨骼也能操作了。所以在引擎层面上，是后处理动画蓝图和DNAAsset两个一起配合驱动着RigLogi表情系统。所以如果要做骨骼捏脸方案，对面部骨骼进行修改，那么就应该遵循RigLogic原生的流程去处理。因此，我们就需要进一步探寻后处理动画蓝图的内容和DNAAsset之间的关联。
+## MetaHuman的表情逻辑驱动
+先说结论，MetaHuman面部表情的逻辑驱动入口在UE引擎层面上是靠一个ControlRig节点。打开一个MetaHuman的USkeletalMesh后，可以看到它自带了后处理动画蓝图(PostProcess ABP)，我们如果直接在窗口下方禁用它或者去除对它的引用，就能看到可以自由拖动面部骨骼了
+
+在AssetUserData栏目下，可以看到保存了一个UDNAAsset，如果在开启后处理动画蓝图的同时去除DNAAsset，会发现面部骨骼也能操作了，可以理解是后处理动画蓝图和DNAAsset两个一起配合着驱动RigLogi表情系统。所以如果要做骨骼捏脸方案，对面部骨骼进行修改，那么就应该遵循RigLogic原生的流程去处理。因此，我们就需要进一步探寻后处理动画蓝图的内容和DNAAsset之间的关联和工作流。
 
 
 ![Face](MetaHuman/face.png ':size=90%')
@@ -20,8 +24,9 @@
 
 ## RigUnit_RigLogic数据结构
 在RigLogic节点里，有一个非常核心的数据结构FRigUnit_RigLogic_Data，它是整个RigLogic节点执行过程中的上下文，它包含了以下这两个关键的数据结构，了解它们是解读MetaHuman表情非常关键的一环。
-- SharedRigRuntimeContxt
-- RigInstance
+- FSharedRigRuntimeContxt
+- FRigLogic
+- FRigInstance
 
 ![RigLogicData](MetaHuman/RigLogicData.png ':size=80%')
 
@@ -41,9 +46,9 @@ struct FSharedRigRuntimeContext
 ```
 
 ### FRigLogic
-RigLogic是真正的数据容器，它存放了所有骨骼，控制器，BlendShapes等一系列数据。它的工厂构造函数通过初始化后的IBehaviorReader，将DNA里的原型数据读取出来并单独COPY出来，所以不同USkeletalMesh所对应的MetaHuman的数据都是相互隔离的，而一个USkeletalMesh对应的多个动画实例则共享同一份内存地址。
+UDNAAsset是MetaHuman的数据容器，它存放了所有骨骼，控制器，BlendShapes等一系列数据。而FRigLogic是它在UE引擎下的数据表示，它的工厂构造函数通过初始化后的IBehaviorReader，将DNA里的原型数据读取出来并单独COPY出来，所以不同USkeletalMesh所对应的MetaHuman的数据都是相互隔离的，而一个USkeletalMesh对应的多个动画实例则共享同一份内存地址。
 
-![RigInstance](MetaHuman/RigInstance.png)
+![FRigLogic](MetaHuman/RigInstance.png ':size=90%')
 
 ```C++
 namespace rl4 {
@@ -75,6 +80,24 @@ class RigLogicImpl : public RigLogic {
 };
 }  // namespace rl4
 
+```
+### FRigInstance
+完成FRigLogic的初始化后，会通过FRigLogic完成FRigInstance的初始化，并将其handle保存在RigUnit的FRigUnit_RigLogic_Data的Unique指针里。所以RigInstance是每个Control节点，每个RigVM单独持有一份，计算出来的表情数据也会保存在RigInstance里，节点与节点之间相互不会影响。
+```C++
+void FRigUnit_RigLogic_Data::InitializeRigLogic(const URigHierarchy* InHierarchy)
+{
+    // ...
+    if (!RigInstance.IsValid())
+	{
+		RigInstance = MakeUnique<FRigInstance>(SharedRigRuntimeContext->RigLogic.Get());
+    }
+}
+
+FRigInstance::FRigInstance(FRigLogic* RigLogic) :
+	MemoryResource{FMemoryResource::SharedInstance()},
+	RigInstance{rl4::RigInstance::create(RigLogic->Unwrap(), MemoryResource.Get())}
+{
+}
 ```
 
 ## RigUnit_RigLogic执行流程
