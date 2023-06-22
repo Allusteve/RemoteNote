@@ -2,7 +2,7 @@
 
 > 文章写下时的工作环境：UE5.0.3 
 
-> 之前预研了MetaHuman角色捏脸相关的技术，最近重温细节时发现很多都忘记了，想来还是要用文字记录下来
+> 22年的时候因为角色捏脸相关的需求，替美术预研了MetaHuman的表情技术。最近重温细节时发现很多都忘记了，想来还是要用文字记录下来
 > 
 ## 前言
 首先美术给到了MetaHumanCreator生成的角色资产，希望我们在其基础上对脸部的骨骼调整，达到捏脸的效果，同时还要保证原生的RigLogic表情系统能正常运作。我这边刚拿到USkeletalMesh资源后，发现在UE编辑器下对面部骨骼的transform进行操作却始终无法生效，于是找到了Epic官方发布的RigLogic白皮书，对其整个表情系统进行了学习，下面简单记录一下整个过程中遇到的技术要点
@@ -155,7 +155,7 @@ public:
 ### NeutralJointValues
 有了RigRuntimeContext的指针，那么修改数据的入口就有了，接下来看一下NeutralJointValues是怎么定义的。因为RigLogic是一个第三方库，它的Transform数据排列方式和UE的FTransform是不一致的，所以插件里写了一个FTransformArrayView结构将底层数据封装了一层。
 
-![transformview](MetaHuman/transformview.png ':size=70%')
+![transformview](MetaHuman/transform.png ':size=70%')
 
 同理，我们如果想将美术提供的FTransform数据写入Values内存地址里，就仿照ConvertCoordinateSystem将数据反转一下。
 ```C++
@@ -163,7 +163,7 @@ class RIGLOGICMODULE_API FTransformArrayView
 {
 //....
 public:
-    void SetFTransformFromIndex(const FTransform& InTransform, size_t Index)
+    void SetTransformFromIndex(const FTransform& InTransform, size_t Index)
     {
         float* Source = Values + (Index * TransformationSize);
         Source[0] = InTransform.GetLocation().X;
@@ -193,7 +193,7 @@ public:
 	{
 		if(ContextPtr->BehaviorReader->GetJointName(JointIndex) == BoneName)
         {
-            ContextPtr->RigLogic->GetNeutralJointValues().SetFTransformFromIndex(InTransform, JointIndex);
+            ContextPtr->RigLogic->GetNeutralJointValues().SetTransformFromIndex(NewTransform, JointIndex);
         }
 	}
 }
