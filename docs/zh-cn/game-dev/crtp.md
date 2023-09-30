@@ -1,5 +1,12 @@
   # 翻译|使用CRTP的一些优点
-  
+
+  > 在Stackoverflow上看到的一个关于CRTP比较有意思的回答，答主用了一些游戏开发相关的概念，来举例使用CRTP编写引擎时的一些优缺点。
+
+  > 原文地址：[Benefits of CRTP over an abstract class?](https://stackoverflow.com/questions/59349351/benefits-of-crtp-over-an-abstract-class)
+
+  ---
+  ## 原文回答
+
   使用CRTP有以下几个优点
 
  - Generic Code：作为一种泛型编程，使用CRTP的容器类，列表和数组的代码，程序会在编译器完成推导计算
