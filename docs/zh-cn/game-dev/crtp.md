@@ -9,7 +9,7 @@
 
   使用CRTP有以下几个优点
 
- - Generic Code：作为一种泛型编程，使用CRTP的容器类，列表和数组的代码，程序会在编译器完成推导计算
+ - Generic Code：作为一种泛型编程，使用CRTP的容器类，列表和数组的代码，程序会在编译期间完成推导计算
   - Reusability：很容易地使用已有的代码去创建新的代码
   - Efficiency ：使用泛型编程的核心思想就是：对象、函数调用、它们的类型，甚至它们的值都是在编译时而不是运行时确定的，这与虚函数不同，虚函数需要编译器和操作系统生成的虚拟函数表的运行时开销。
   - Maintainability：因为总体上更少的代码量，因此可以更容易地维护代码。而不像在复杂的类层次结构中，多重继承关系导致的更多代码量。
@@ -22,7 +22,7 @@
  - Compiler: 根据编译器的实现不同，一些生成消息可能是晦涩难懂的，或者如果你没有真正了解编译器、生成的程序集以及幕后发生的事情，它可能会将你指向到错误的代码行，而不是实际产生或调用错误的代码行
  - Linker: 只要代码编译和对象链接正确，链接器就不应该有任何问题。
  - Debugger: 同Compiler类似，调试时的生成信息也是晦涩难懂的，可能将开发者导向错误的代码位置，而不是真正产生或触发Error和异常的位置
- - Readability: 因为所需语法的复杂性，阅读起来会有一点困难
+ - Readability: 因为所需语法的复杂性，阅读起来会有一些困难
 
 
 至于使用哪种编程范式（该语境下，主要是指CRTP和OOP）才是最佳的实践方式，需要取决于你的代码所面向的目标来权衡差异。
@@ -64,7 +64,46 @@
 
 如果你想了解两者的性能有何不同，你最终可以写两个代码库来执行相同的任务，一个专门用CRTP创建，另一个不使用CRTP，只使用继承和虚拟函数。然后将这些代码库输入到各种在线编译器中，这些编译器将为可使用的各种类型的可用编译器生成不同类型的汇编指令，并比较生成的汇编。我喜欢Jason Turn使用的编译器资源管理器
 
----
+## 回答下的评论
 
-下面的评论提到了一条关于CRTP的潜在缺点：  
+下面的评论提到了一条关于CRTP的潜在缺点：   
+
 >CRTP的一个缺点是，当应用静态强制转换时，不能将方法定义为const。这意味着这些非const方法，对于使用CRTP实现接口的const对象将不可见
+
+评论里贴出了一个blog链接，里面通过一个Helper结构来解决这个问题
+
+```C++
+template<typename T>
+class Base
+{
+public:
+	void Interface() 
+	{
+		// static_cast<T*>(this)->Implementation();
+		UnderLying()->Implementation();
+	}
+
+	void Interface() const
+	{
+		UnderLying()->Implementation();
+	}
+
+	inline T* UnderLying() { return static_cast<T*>(this); }
+	inline const T* UnderLying() const { return static_cast<const T*> (this); }
+};
+
+class Derived1 : public Base<Derived1>
+{
+public:
+	void Implementation() 
+	{
+		std::cout << "Derived1 Impl" << std::endl;
+	}
+
+	void Implementation() const
+	{
+		std::cout << "Derived1 Impl const" << std::endl;
+	}
+};
+```
+
