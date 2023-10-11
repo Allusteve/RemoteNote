@@ -134,7 +134,7 @@ double t = 0.0;
 
 让我们从一个欠阻尼系统开始，在这个系统中，质量在原点附近振荡，同时减速
 
-下面是质量弹簧系统的输入参数：
+下面是质量弹簧系统的输入参数：g
 - 质量：1 Kg
 - 初始位置：距离原点1000米
 - 胡克定律弹簧系数：$k=15$
@@ -143,3 +143,176 @@ double t = 0.0;
 
 下面是精确解的图表：
 ![extact_solution](interagtion/damped_extact_solution.png ':size=80%')
+当使用显式欧拉对这个系统积分，我们得到下面的结果，图表已经按比例垂直缩小
+![euler_solution](interagtion/damped_explicit_euler.png ':size=80%')
+不同于精确解的衰减和收敛于原点，系统内部的能量随着时间越来越大。
+
+
+当使用显式euler和$dt=1/100$的步长进行积分时，该系统是不稳定的。
+
+不幸的是，由于我们已经了使用一个小的时间步长进行积分，因此我们没有太多可用的选项来提高结果的准确性。即使你进一步减少时间步长，总有一个弹簧松紧度k，一旦超过这个值你就会得到这种不收敛的结果。
+
+## Semi-implicit Euler
+另一个可以考虑的积分器是半隐式欧拉（Semi-Implicit Euler）。
+
+多数商业游戏物理引擎都使用这个积分器。
+
+从显式euler转换为半隐式euler只需简单地从：
+```
+position += velocity * dt;
+velocity += acceleration * dt;
+```
+改为：
+```
+velocity += acceleration * dt;
+position += velocity * dt;
+```
+
+将d$t=1/100$的半隐式欧拉积分应用于弹簧-阻尼器系统，得到了非常接近精确解的稳定结果：
+![semi_euler_solution](interagtion/semi_implicit_euler.png ':size=80%')
+
+尽管半隐式欧拉的精度与显式欧拉（1阶精度，主要指数值方法中的误差随着步长的减小而线性减小）的精度相同，但我们在积分运动方程时会得到了一个更好的结果，因为它是symplectic
+
+## Many different integration methods exist
+
+隐式欧拉方法非常适合模拟刚性方程，而一般其他数值积分方法会变得不稳定。缺点是它需要在每个时间步长求解一个方程组
+
+当模拟大量粒子时，Verlet积分提供了比隐式欧拉更高的精度和更少的内存占用。这是一个二阶积分器，同样也是symplectic的
+
+积分器家族有个名称叫做Runge-Kutta methods，显式欧拉也是这类方法中的一种。但是它也包含了更高阶的积分器，最经典的是 Runge Kutta order 4 或者缩写为 RK4
+
+这个龙格-库塔积分器家族是以发现它们的德国物理学家卡尔·龙格和马丁·库塔的名字命名的。这意味着“g”是硬的，“u”是短的“oo”音。我很抱歉通知您，但这意味着我们谈论的是“roon-geh-koo-ta”方法，而不是“runge cutter”，不管是什么：）
+
+RK4是一个四阶积分器，这意味着它的累积误差在四阶导数的数量级上。这使得它非常准确。比仅为一阶的显式和隐式欧拉精确得多
+
+尽管它更准确，但这并不是说RK4就应该是“最佳”积分器，也不意味着一定比半隐式欧拉更好。这个问题很复杂。
+
+无论如何，它是一个有趣的积分器，非常值得研究
+
+## Implementing RK4
+There are many great explanations of the mathematics behind RK4 already. For example: here, here and here.   
+关于RK4已经有许多非常好的数学上的解释，比如：[这个](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods)，[这个](http://web.mit.edu/10.001/Web/Course_Notes/Differential_Equations_Notes/node5.html)和[这个](https://www.researchgate.net/publication/49587610_A_Simplified_Derivation_and_Analysis_of_Fourth_Order_Runge_Kutta_Method)。我强烈鼓励你遵循理论推导，并理解它在数学层面上是如何以及为什么工作的。但是，鉴于本文的目标受众是程序员，而不是数学家，我们更注重具体实现，所以让我们直接开始吧。
+
+让我们在C++中定义一个结构体来表示对象的状态，这样我们就可以方便地将位置和速度存储在一个地方：
+```
+    struct State
+    {
+        float x;      // position
+        float v;      // velocity
+    };
+```
+
+我们还需要一个结构体来存储状态值的导数（变化率）:
+```
+    struct Derivative
+    {
+        float dx;      // dx/dt = velocity
+        float dv;      // dv/dt = acceleration
+    };
+```
+接下来，我们需要一个函数，使用一组导数将物理状态从t推进到t+dt，一旦完成状态更新，就在这个新状态下重新计算导数：
+```
+    Derivative evaluate( const State & initial, 
+                         double t, 
+                         float dt, 
+                         const Derivative & d )
+    {
+        State state;
+        state.x = initial.x + d.dx*dt;
+        state.v = initial.v + d.dv*dt;
+
+        Derivative output;
+        output.dx = state.v;
+        output.dv = acceleration( state, t+dt );
+        return output;
+    }
+```
+acceleration函数是驱动整个物理模拟的核心。让我们将其设置为弹簧-阻尼器系统，并返回假设单位质量的加速度：
+```
+    float acceleration( const State & state, double t )
+    {
+        const float k = 15.0f;
+        const float b = 0.1f;
+        return -k * state.x - b * state.v;
+    }
+```
+现在我们要关注RK4积分程序本身：
+```
+    void integrate( State & state, 
+                    double t, 
+                    float dt )
+    {
+        Derivative a,b,c,d;
+
+        a = evaluate( state, t, 0.0f, Derivative() );
+        b = evaluate( state, t, dt*0.5f, a );
+        c = evaluate( state, t, dt*0.5f, b );
+        d = evaluate( state, t, dt, c );
+
+        float dxdt = 1.0f / 6.0f * 
+            ( a.dx + 2.0f * ( b.dx + c.dx ) + d.dx );
+        
+        float dvdt = 1.0f / 6.0f * 
+            ( a.dv + 2.0f * ( b.dv + c.dv ) + d.dv );
+
+        state.x = state.x + dxdt * dt;
+        state.v = state.v + dvdt * dt;
+    }
+
+```
+RK4积分器在四个点对导数进行采样以检测曲线。请注意，在计算b时如何使用导数a，在计算c时使用导数b，以及将c计算为d。这种将当前导数结果输入到下一个导数的计算过程中的机制，保证了RK4积分器的计算精度
+
+重要的是，当这些量的变化率是时间的函数或状态本身的函数时，这些导数a、b、c和d中的每一个都将不同。例如，在我们的弹簧阻尼器系统中，加速度是当前位置和速度的函数，它们在整个时间步长内变化
+
+一旦这四个导数计算完成，就可以用泰勒级数展开式得到的加权系数和来计算出一个最佳的，综合导数。这个组合导数用于向前推进更新位置和速度，就像我们在使用显式欧拉积分器时做的那样
+
+## Semi-implicit euler vs. RK4
+
+现在让我们对RK4积分器进行测试。
+
+由于它是一个更高阶的积分器（4阶与1阶），它将明显比半隐式欧拉更准确，对吧？
+![intergation_diff](interagtion/integration_different.png)
+
+**错误**。两个积分器都非常接近精确解，因此在这种规模下不可能产生任何差异。两个积分器都是稳定的，并且在dt＝1/100时很好地跟踪精确解
+![zoom_in](interagtion/integration_zoomed_in.png)
+
+放大图像后，证实了RK4确实比半隐式欧拉更准确，但这更高的精度是否比RK4的复杂性和额外的运行时成本更值得？这很难说。
+
+让我们更努力一点，看看我们是否能发现这两个积分器之间的显著差异。不幸的是，我们不能长时间观察这个系统，因为它会很快衰减到零，所以让我们切换到一个简单的谐波振荡器，它永远振荡，没有任何阻尼。
+
+下面是我们期望得到的精确解图像：
+![undamped](interagtion/integration_undamped_exact_solution.png)
+为了使积分器不那么轻松得到准确的结果，让我们将delta time增大到0.1秒。
+
+接下来，我们让积分器运行90秒并放大得到的图像：
+![undamped_vs](interagtion/integration_undamped_rk4_vs_semi_implicit_euler.png)
+90秒后，半隐式欧拉解（橙色曲线）与精确解偏离了相位，因为它的频率略有不同，而RK4的绿线与精确解的频率匹配，但正在失去能量！
+
+通过将时间步长增加到0.25秒，我们可以更清楚地看到这一点。
+
+RK4保持正确的频率，但损失能量：
+![undamped_rk4_5](interagtion/integration_basics_undamped_rk4_5fps.png)
+总体来讲，虽然半隐式欧拉在能量守恒方面做得更好：
+![undamped_semi_euler_5](interagtion/integration_basics_undamped_semi_implicit_euler_5fps.png)
+
+但偏离了相位。多么有趣的结果！正如你所看到的，这不仅仅是RK4具有更高精度和“更好”的情况这么简单。实际情况比这要微妙得多
+
+## Conclusion
+
+你应该在游戏中使用哪个积分器？
+
+我的建议是半隐式欧拉。它运行开销比较低，易于实现，比显式欧拉稳定得多，即使接近极限，它也能平均保持能量
+
+如果你真的需要比半隐式欧拉更高的精度，我建议你研究为哈密顿系统设计的高阶辛积分器。通过这种方式，您将发现比RK4更适合游戏物理模拟的，更现代的高阶积分技术。
+
+最后，如果你还在游戏中这样做：
+```
+    position += velocity * dt;
+    velocity += acceleration * dt;
+```
+请花一点点时间改成下面的形式：
+```
+    velocity += acceleration * dt;
+    position += velocity * dt;
+```
+你会很高兴你这么做了：）
