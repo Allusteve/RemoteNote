@@ -9,6 +9,7 @@
     * [UE中的Additive动画](zh-cn/unreal-engine/AdditiveAnim.md)
     * [地图切换和LinkAnimGraph](zh-cn/unreal-engine/LinkAnimGraph的问题.md)
     * [MetaHuman表情驱动和骨骼捏脸](zh-cn/unreal-engine/MetaHuman捏脸.md)
+    * [AI寻路模块的定制化开发记录](zh-cn/unreal-engine/navigation.md)
 * [游戏开发通用知识](zh-cn/game-dev/)
     * [翻译|使用CRTP的优点](zh-cn/game-dev/crtp.md)
     * [翻译|IntegrationBasics](zh-cn/game-dev/intergationbasic.md)
